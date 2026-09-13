@@ -3,7 +3,10 @@ class AutonomicM401Card extends HTMLElement {
     if (!config.entities || !Array.isArray(config.entities) || config.entities.length !== 4) {
       throw new Error("Autonomic M401 card needs exactly 4 zone objects.");
     }
-    this.config = config;
+    this.config = {
+      show_volume: true,
+      ...config
+    };
     if (!this.shadowRoot) this.attachShadow({mode: "open"});
     this.shadowRoot.innerHTML = `
       <ha-card>
@@ -48,6 +51,8 @@ class AutonomicM401Card extends HTMLElement {
     const grid = this.shadowRoot.querySelector(".grid");
     grid.replaceChildren();
 
+    const showVolume = this.config.show_volume !== false;
+
     for (const z of this.config.entities) {
       const power = this.state(z.power);
       const volume = this.state(z.volume);
@@ -66,19 +71,25 @@ class AutonomicM401Card extends HTMLElement {
       p.textContent = power?.state === "on" ? "AN" : "AUS";
       top.append(name, p);
 
-      const volRow = document.createElement("div");
-      volRow.className = "row";
-      const slider = document.createElement("input");
-      slider.type = "range"; slider.min = "0"; slider.max = "100";
-      slider.value = volume?.state ?? "0";
-      slider.disabled = power?.state !== "on";
-      const vol = document.createElement("div");
-      vol.className = "vol"; vol.textContent = `${volume?.state ?? 0}%`;
-      slider.addEventListener("change", () => this._hass.callService("number", "set_value", {
-        entity_id: z.volume, value: Number(slider.value)
-      }));
-      slider.addEventListener("input", () => vol.textContent = `${slider.value}%`);
-      volRow.append(slider, vol);
+      box.append(top);
+
+      let slider;
+      if (showVolume) {
+        const volRow = document.createElement("div");
+        volRow.className = "row";
+        slider = document.createElement("input");
+        slider.type = "range"; slider.min = "0"; slider.max = "100";
+        slider.value = volume?.state ?? "0";
+        slider.disabled = power?.state !== "on";
+        const vol = document.createElement("div");
+        vol.className = "vol"; vol.textContent = `${volume?.state ?? 0}%`;
+        slider.addEventListener("change", () => this._hass.callService("number", "set_value", {
+          entity_id: z.volume, value: Number(slider.value)
+        }));
+        slider.addEventListener("input", () => vol.textContent = `${slider.value}%`);
+        volRow.append(slider, vol);
+        box.append(volRow);
+      }
 
       const controls = document.createElement("div");
       controls.className = "row";
@@ -103,7 +114,8 @@ class AutonomicM401Card extends HTMLElement {
 
       controls.append(select, muteBtn);
 
-      box.append(top, volRow, controls);
+      box.append(controls);
+
       box.addEventListener("click", (ev) => {
         if (ev.target === slider || ev.target === select || ev.target === muteBtn) return;
         this._hass.callService("switch",

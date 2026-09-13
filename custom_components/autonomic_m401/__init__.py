@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -14,6 +15,9 @@ PLATFORMS = [
 ]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Register card JS automatically in Home Assistant Frontend
+    add_extra_js_url(hass, "/hacsfiles/autonomic-m401/autonomic-m401-card.js")
+
     client = AutonomicClient(
         entry.data["host"],
         entry.data["port"],
