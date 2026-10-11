@@ -29,7 +29,14 @@ class AutonomicM401Card extends HTMLElement {
         .power { font-size:12px; opacity:.8; }
         .row { margin-top:10px; display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center; }
         input[type=range] { width:100%; }
-        select { width:100%; border-radius:8px; padding:5px; }
+        .sources { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; margin-top:10px; }
+        .source { min-width:0; min-height:44px; border:1px solid var(--divider-color);
+          border-radius:8px; background:var(--card-background-color); color:var(--primary-text-color);
+          font:inherit; cursor:pointer; touch-action:manipulation; }
+        .source[aria-pressed=true] { background:var(--primary-color); color:var(--text-primary-color,#fff);
+          border-color:currentColor; font-weight:700; }
+        .source:disabled { opacity:.5; cursor:default; }
+        .source:focus-visible { outline:2px solid var(--primary-text-color); outline-offset:2px; }
         .mute { border:0; border-radius:8px; padding:5px 8px; cursor:pointer; }
         .muted { background:var(--error-color); color:white; }
         .vol { font-size:12px; min-width:36px; text-align:right; }
@@ -93,16 +100,29 @@ class AutonomicM401Card extends HTMLElement {
 
       const controls = document.createElement("div");
       controls.className = "row";
-      const select = document.createElement("select");
-      ["S1","S2","S3","S4","S5","S6","S7","S8"].forEach(s => {
-        const o = document.createElement("option"); o.value=s; o.textContent=s;
-        if (source?.state === s) o.selected=true;
-        select.append(o);
+      const sources = document.createElement("div");
+      sources.className = "sources";
+      sources.setAttribute("role", "group");
+      sources.setAttribute("aria-label", `Quelle für ${z.name}`);
+      const options = source?.attributes?.options ?? ["S1","S2","S3","S4","S5","S6","S7","S8"];
+      options.forEach(s => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "source";
+        button.textContent = s;
+        button.setAttribute("aria-pressed", String(source?.state === s));
+        button.disabled = power?.state !== "on" || !source ||
+          ["unavailable", "unknown"].includes(source.state);
+        button.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (button.disabled || this.state(z.source)?.state === s) return;
+          this._hass.callService("select", "select_option", {
+            entity_id: z.source, option: s
+          });
+        });
+        sources.append(button);
       });
-      select.disabled = power?.state !== "on";
-      select.addEventListener("change", () => this._hass.callService("select", "select_option", {
-        entity_id: z.source, option: select.value
-      }));
+      box.append(sources);
 
       const muteBtn = document.createElement("button");
       muteBtn.className = "mute" + (mute?.state === "on" ? " muted" : "");
@@ -112,12 +132,12 @@ class AutonomicM401Card extends HTMLElement {
         mute?.state === "on" ? "turn_off" : "turn_on",
         {entity_id: z.mute}));
 
-      controls.append(select, muteBtn);
+      controls.append(muteBtn);
 
       box.append(controls);
 
       box.addEventListener("click", (ev) => {
-        if (ev.target === slider || ev.target === select || ev.target === muteBtn) return;
+        if (ev.target.closest("button, input, .sources")) return;
         this._hass.callService("switch",
           power?.state === "on" ? "turn_off" : "turn_on",
           {entity_id: z.power});
